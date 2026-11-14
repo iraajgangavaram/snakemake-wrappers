@@ -8,6 +8,9 @@ name: make pin
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - pin-helper
 
 permissions:
   contents: read
