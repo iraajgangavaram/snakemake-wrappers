@@ -1,0 +1,55 @@
+name: make pin
+
+# Throwaway helper. Solves the hgt-site/call environment on a linux-64 runner
+# and uploads the pin file, because the pin has to be generated on the platform
+# it names and no linux-64 machine was to hand.
+#
+# This lives on its own branch and is never part of the pull request.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: add-hgt-site-call
+
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          activate-environment: pinner
+          auto-activate-base: false
+
+      - name: Install snakedeploy
+        run: pip install snakedeploy
+
+      - name: Solve the environment and write the pin
+        run: snakedeploy pin-conda-envs bio/hgt-site/call/environment.yaml
+
+      - name: Check it is what it should be
+        run: |
+          pin=bio/hgt-site/call/environment.linux-64.pin.txt
+          test -s "$pin" || { echo "no pin file was written"; exit 1; }
+          # Every line must be a package URL for this platform. A pin solved on
+          # the wrong platform is the failure worth catching, since it looks
+          # perfectly normal otherwise.
+          if grep -qE 'osx-|win-' "$pin"; then
+            echo "the pin names another platform:"; grep -E 'osx-|win-' "$pin"; exit 1
+          fi
+          grep -c '^https://conda.anaconda.org/' "$pin"
+          echo "--- the file ---"
+          cat "$pin"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: environment-pin
+          path: bio/hgt-site/call/environment.linux-64.pin.txt
